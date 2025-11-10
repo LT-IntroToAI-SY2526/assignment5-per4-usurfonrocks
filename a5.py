@@ -106,7 +106,28 @@ class Board:
         Returns:
             a tuple of row, column index identifying the most constrained cell
         """
-        pass
+        # initialize with None and a large size
+        best_coord = None
+        best_len = 10  # larger than any possible list of possibilities
+
+        for i in range(self.size):
+            for j in range(self.size):
+                cell = self.rows[i][j]
+                # only consider unassigned cells (lists)
+                if isinstance(cell, list):
+                    l = len(cell)
+                    # we want the smallest list length (most constrained)
+                    if l < best_len:
+                        best_len = l
+                        best_coord = (i, j)
+                        # early exit if we've found an empty list
+                        if best_len == 0:
+                            return best_coord
+
+        # If no unassigned cell found best_coord will be None. Return something
+        # sensible (this can occur if board is complete). Caller should check
+        # goal_test before relying on this method.
+        return best_coord
 
     def failure_test(self) -> bool:
         """Check if we've failed to correctly fill out the puzzle. If we find a cell
@@ -116,7 +137,13 @@ class Board:
         Returns:
             True if we have failed to fill out the puzzle, False otherwise
         """
-        pass
+        # If any unassigned cell has no possible values, we've failed
+        for i in range(self.size):
+            for j in range(self.size):
+                cell = self.rows[i][j]
+                if isinstance(cell, list) and len(cell) == 0:
+                    return True
+        return False
 
     def goal_test(self) -> bool:
         """Check if we've completed the puzzle (if we've placed all the numbers).
@@ -125,7 +152,7 @@ class Board:
         Returns:
             True if we've placed all numbers, False otherwise
         """
-        pass
+        return self.num_nums_placed == self.size * self.size
 
     def update(self, row: int, column: int, assignment: int) -> None:
         """Assigns the given value to the cell given by passed in row and column
@@ -139,7 +166,28 @@ class Board:
             column - index of the column to assign
             assignment - value to place at given row, column coordinate
         """
-        pass
+        # Assign the value
+        self.rows[row][column] = assignment
+        # increment placed counter
+        self.num_nums_placed += 1
+
+        # remove assignment from row possibilities
+        for c in range(self.size):
+            if c == column:
+                continue
+            remove_if_exists(self.rows[row][c], assignment)
+
+        # remove assignment from column possibilities
+        for r in range(self.size):
+            if r == row:
+                continue
+            remove_if_exists(self.rows[r][column], assignment)
+
+        # remove assignment from subgrid possibilities
+        for (r, c) in self.subgrid_coordinates(row, column):
+            if r == row and c == column:
+                continue
+            remove_if_exists(self.rows[r][c], assignment)
 
 
 def DFS(state: Board) -> Board:
@@ -154,7 +202,37 @@ def DFS(state: Board) -> Board:
     Returns:
         either None in the case of invalid input or a solved board
     """
-    pass
+    if state is None or not isinstance(state, Board):
+        return None
+
+    stack = Stack([state])
+
+    while not stack.is_empty():
+        current: Board = stack.pop()
+
+        if current.failure_test():
+            continue
+
+        if current.goal_test():
+            return current
+
+        coord = current.find_most_constrained_cell()
+        # if no unassigned cell found but not goal, continue
+        if coord is None:
+            continue
+
+        r, c = coord
+        options = current.rows[r][c]
+        # if it's not a list, skip (shouldn't happen)
+        if not isinstance(options, list):
+            continue
+
+        for val in options:
+            new_board = copy.deepcopy(current)
+            new_board.update(r, c, val)
+            stack.push(new_board)
+
+    return None
 
 
 def BFS(state: Board) -> Board:
@@ -169,7 +247,35 @@ def BFS(state: Board) -> Board:
     Returns:
         either None in the case of invalid input or a solved board
     """
-    pass
+    if state is None or not isinstance(state, Board):
+        return None
+
+    queue = Queue([state])
+
+    while not queue.is_empty():
+        current: Board = queue.pop()
+
+        if current.failure_test():
+            continue
+
+        if current.goal_test():
+            return current
+
+        coord = current.find_most_constrained_cell()
+        if coord is None:
+            continue
+
+        r, c = coord
+        options = current.rows[r][c]
+        if not isinstance(options, list):
+            continue
+
+        for val in options:
+            new_board = copy.deepcopy(current)
+            new_board.update(r, c, val)
+            queue.push(new_board)
+
+    return None
 
 
 if __name__ == "__main__":
